@@ -216,10 +216,12 @@ func resourceSearchServiceCreate(d *pluginsdk.ResourceData, meta interface{}) er
 	}
 
 	// NOTE: hosting mode is only valid if the SKU is 'standard3'
-	if skuName != services.SkuNameStandardThree && hostingMode == services.HostingModeHighDensity {
-		return fmt.Errorf("'hosting_mode' can only be defined if the 'sku' field is set to the %q SKU, got %q", string(services.SkuNameStandardThree), skuName)
+	if skuName == services.SkuNameStandardThree {
+		hostingMode := services.HostingMode(d.Get("hosting_mode").(string))
+		payload.Properties.HostingMode = pointer.To(hostingMode)
 	}
-
+	
+	
 	// NOTE: 'partition_count' values greater than 1 are not valid for 'free' or 'basic' SKUs...
 	partitionCount := int64(d.Get("partition_count").(int))
 
@@ -340,18 +342,12 @@ func resourceSearchServiceUpdate(d *pluginsdk.ResourceData, meta interface{}) er
 	}
 
 	if d.HasChange("hosting_mode") {
-		hostingMode := services.HostingMode(d.Get("hosting_mode").(string))
-		if model.Sku == nil {
-			return fmt.Errorf("updating `hosting_mode` for %s: unable to validate the hosting_mode since `model.Sku` was nil", *id)
+		if pointer.From(model.Sku.Name) == services.SkuNameStandardThree {
+			hostingMode := services.HostingMode(d.Get("hosting_mode").(string))
+			model.Properties.HostingMode = pointer.To(hostingMode)
 		}
-
-		if pointer.From(model.Sku.Name) != services.SkuNameStandardThree && hostingMode == services.HostingModeHighDensity {
-			return fmt.Errorf("'hosting_mode' can only be set to %q if the 'sku' is %q, got %q", services.HostingModeHighDensity, services.SkuNameStandardThree, pointer.From(model.Sku.Name))
-		}
-
-		model.Properties.HostingMode = pointer.To(hostingMode)
 	}
-
+	
 	if d.HasChange("identity") {
 		expandedIdentity, err := identity.ExpandSystemAssigned(d.Get("identity").([]interface{}))
 		if err != nil {
